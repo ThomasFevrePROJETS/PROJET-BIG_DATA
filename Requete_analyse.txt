@@ -1,0 +1,285 @@
+# Ensemble de la création des vues d'analyses
+
+#_________________________UN_________________________________________
+# Taux de consultation par etablissement sur les tables partitionnées
+
+DROP VIEW IF EXISTS TauxConsultationEtablissementVue;
+CREATE VIEW TauxConsultationEtablissementVue (Taux, Sum_consultation, Total_consultation, Libelle_etablissement_professionnel, Annee_temps, Mois_temps, Jour_temps)
+AS SELECT Sum_consultation*100/Total_consultation as Taux, Sum_consultation, Total_consultation, Libelle_etablissement_professionnel, Annee_temps, Mois_temps, Jour_temps 
+   FROM (SELECT SUM(Nombre_consultation) AS Sum_consultation, Libelle_etablissement_professionnel, Id_temps 
+         FROM Fait
+         INNER JOIN Professionnel ON Id_professionnel = Id
+         WHERE Nombre_consultation != 0
+         GROUP BY Libelle_etablissement_professionnel, Id_temps) AS Consultation_etablissement
+   LEFT JOIN
+        (SELECT SUM(Nombre_consultation) AS Total_consultation, Id_temps 
+         FROM Fait
+         WHERE Nombre_consultation != 0
+         GROUP BY Id_temps) AS Consultation_total 
+   ON Consultation_etablissement.Id_temps = Consultation_total.Id_temps
+   LEFT JOIN Temps ON Consultation_etablissement.Id_temps = Temps.Id
+   WHERE Sum_consultation != 0 AND Total_consultation != 0;
+
+# Taux de consultation par etablissement sur les tables non partitionnées (pas de création de vue)
+
+SELECT Sum_consultation*100/Total_consultation as Taux, Sum_consultation, Total_consultation, Libelle_etablissement_professionnel, Annee_temps, Mois_temps, Jour_temps 
+FROM (SELECT SUM(Nombre_consultation) AS Sum_consultation, Libelle_etablissement_professionnel, Id_temps 
+      FROM Fait
+      INNER JOIN Professionnel ON Id_professionnel = Id
+      WHERE Nombre_consultation != 0
+      GROUP BY Libelle_etablissement_professionnel, Id_temps) AS Consultation_etablissement
+LEFT JOIN
+     (SELECT SUM(Nombre_consultation) AS Total_consultation, Id_temps
+      FROM Fait
+      WHERE Nombre_consultation != 0
+      GROUP BY Id_temps) AS Consultation_total 
+ON Consultation_etablissement.Id_temps = Consultation_total.Id_temps
+LEFT JOIN Temps_tmp ON Consultation_etablissement.Id_temps = Temps_tmp.Id
+WHERE Sum_consultation != 0 AND Total_consultation != 0;
+
+#_________________________________DEUX____________________________
+# Taux de consultation par diagnostic sur les tables partitionnées
+
+DROP VIEW IF EXISTS TauxConsultationDiagnosticVue;
+CREATE VIEW TauxConsultationDiagnosticVue (Taux, Sum_consultation, Total_consultation, Libelle_diagnostic, Annee_temps, Mois_temps, Jour_temps)
+AS SELECT Sum_consultation*100/Total_consultation AS Taux, Sum_consultation, Total_consultation, Libelle_diagnostic, Annee_temps, Mois_temps, Jour_temps
+FROM (SELECT SUM(Nombre_consultation) as Sum_consultation, Libelle_diagnostic, Id_temps 
+      FROM Fait 
+      LEFT JOIN Diagnostic ON Fait.Id_diagnostic = Diagnostic.Id 
+      WHERE Nombre_consultation != 0
+      GROUP BY Libelle_diagnostic, Id_temps) as Consultation_diagnostic
+LEFT JOIN
+     (SELECT SUM(Nombre_consultation) as Total_consultation, Id_temps 
+      FROM Fait
+      WHERE Nombre_consultation != 0
+      GROUP BY Id_temps) as Consultation_total
+ON Consultation_diagnostic.Id_temps = Consultation_total.Id_temps
+LEFT JOIN Temps ON Consultation_diagnostic.Id_temps = Temps.Id
+WHERE Sum_consultation != 0 AND Total_consultation != 0;
+
+# Taux de consultation par diagnostic sur les tables non partitionnées (pas de création de vue)
+
+SELECT Sum_consultation*100/Total_consultation AS Taux, Sum_consultation, Total_consultation, Libelle_diagnostic, Annee_temps, Mois_temps, Jour_temps
+FROM (SELECT SUM(Nombre_consultation) as Sum_consultation, Libelle_diagnostic, Id_temps 
+      FROM Fait 
+      LEFT JOIN Diagnostic ON Fait.Id_diagnostic = Diagnostic.Id 
+      WHERE Nombre_consultation != 0
+      GROUP BY Libelle_diagnostic, Id_temps) as Consultation_diagnostic
+LEFT JOIN
+     (SELECT SUM(Nombre_consultation) as Total_consultation, Id_temps 
+      FROM Fait
+      WHERE Nombre_consultation != 0
+      GROUP BY Id_temps) as Consultation_total
+ON Consultation_diagnostic.Id_temps = Consultation_total.Id_temps
+LEFT JOIN Temps ON Consultation_diagnostic.Id_temps = Temps.Id
+WHERE Sum_consultation != 0 AND Total_consultation != 0;
+
+#___________________________TROIS________________________________
+# Taux d'hospitalisation global sur les tables partitionnées
+
+DROP VIEW IF EXISTS TauxHospitalisationsGlobalVue;
+CREATE VIEW TauxHospitalisationsGlobalVue (Taux, Patient_hospitalisation, Total_patient, Id_patient, Annee_temps, Mois_temps, Jour_temps)
+AS SELECT Patient_hospitalisation*100/Total_patient as Taux, Patient_hospitalisation, Total_patient, Id_patient, Annee_temps, Mois_temps, Jour_temps
+FROM (SELECT COUNT(Nombre_hospitalisation) AS Patient_hospitalisation, Id_patient, Id_temps
+      FROM Fait
+      WHERE Nombre_hospitalisation > 0
+      GROUP BY Id_patient, Id_temps) AS Patient_hospitalise
+LEFT JOIN
+     (SELECT COUNT(Id_patient) AS Total_patient, Id_temps
+      FROM Fait
+      WHERE Nombre_hospitalisation > 0 OR Nombre_consultation > 0
+      GROUP BY Id_temps) AS Patient
+ON Patient_hospitalise.Id_temps = Patient.Id_temps
+LEFT JOIN Temps ON Patient_hospitalise.Id_temps = Temps.Id;
+
+# Taux d'hospitalisation global sur les tables non partitionnées (pas de création de vue)
+
+SELECT Patient_hospitalisation*100/Total_patient as Taux, Patient_hospitalisation, Total_patient, Id_patient, Annee_temps, Mois_temps, Jour_temps
+FROM (SELECT COUNT(Nombre_hospitalisation) AS Patient_hospitalisation, Id_patient, Id_temps
+      FROM Fait
+      WHERE Nombre_hospitalisation > 0
+      GROUP BY Id_patient, Id_temps) AS Patient_hospitalise
+LEFT JOIN
+     (SELECT COUNT(Id_patient) AS Total_patient, Id_temps
+      FROM Fait
+      WHERE Nombre_hospitalisation > 0 OR Nombre_consultation > 0
+      GROUP BY Id_temps) AS Patient
+ON Patient_hospitalise.Id_temps = Patient.Id_temps
+LEFT JOIN Temps_tmp ON Patient_hospitalise.Id_temps = Temps_tmp.Id;
+
+#________________________QUATRE_________________________________
+# Taux d'hospitalisation par diagnostic sur les tables partitionnées
+
+DROP VIEW IF EXISTS TauxHospitalisationsDiagnosticVue;
+CREATE VIEW TauxHospitalisationsDiagnosticVue (Taux, Sum_admission, Total_admission, Libelle_diagnostic, Annee_temps, Mois_temps, Jour_temps)
+AS SELECT Sum_admission*100/Total_admission AS Taux, Sum_admission, Total_admission, Libelle_diagnostic, Annee_temps, Mois_temps, Jour_temps
+FROM (SELECT SUM(Nombre_admission) AS Sum_admission, Libelle_diagnostic, Id_temps 
+      FROM Fait 
+      INNER JOIN Diagnostic ON Fait.Id_diagnostic = Diagnostic.Id 
+      WHERE Nombre_admission != 0
+      GROUP BY Libelle_diagnostic, Id_temps) as Admission_diagnostic
+INNER JOIN
+     (SELECT SUM(Nombre_admission) as Total_admission, Id_temps 
+      FROM Fait 
+      INNER JOIN Diagnostic ON Fait.Id_diagnostic = Diagnostic.Id
+      GROUP BY Id_temps) as Admission_total
+ON Admission_diagnostic.Id_temps = Admission_total.Id_temps
+LEFT JOIN Temps ON Admission_diagnostic.Id_temps = Temps.Id
+WHERE Sum_admission != 0 AND Total_admission != 0;
+
+# Taux d'hospitalisation par diagnostic sur les tables non partitionnées (pas de création de vue)
+
+SELECT Sum_admission*100/Total_admission AS Taux, Sum_admission, Total_admission, Libelle_diagnostic, Annee_temps, Mois_temps, Jour_temps
+FROM (SELECT SUM(Nombre_admission) AS Sum_admission, Libelle_diagnostic, Id_temps 
+      FROM Fait 
+      INNER JOIN Diagnostic ON Fait.Id_diagnostic = Diagnostic.Id 
+      WHERE Nombre_admission != 0
+      GROUP BY Libelle_diagnostic, Id_temps) as Admission_diagnostic
+INNER JOIN
+     (SELECT SUM(Nombre_admission) as Total_admission, Id_temps 
+      FROM Fait 
+      INNER JOIN Diagnostic ON Fait.Id_diagnostic = Diagnostic.Id
+      GROUP BY Id_temps) as Admission_total
+ON Admission_diagnostic.Id_temps = Admission_total.Id_temps
+LEFT JOIN Temps_tmp ON Admission_diagnostic.Id_temps = Temps_tmp.Id
+WHERE Sum_admission != 0 AND Total_admission != 0;
+
+#___________________________QUATRE________________________________
+# Hospitalisation et consultation par age pour les hommes sur les tables partitionnées
+
+DROP VIEW IF EXISTS ConsultationHospitalisationFemme;
+CREATE VIEW ConsultationHospitalisationPatient (Sum_consultation, Sum_hospitalisation, Sexe_patient, Age)
+AS SELECT SUM(Nombre_consultation) AS Sum_consultation, SUM(Nombre_hospitalisation) AS Sum_hospitalisation, Sexe_patient, Age
+   FROM (SELECT Nombre_consultation, Nombre_hospitalisation, Sexe_patient, 
+         IF(Mois_temps < Mois_naissance_patient AND Jour_temps < Jour_naissance_patient, 
+         Annee_temps - Annee_naissance_patient - 1, Annee_temps - Annee_naissance_patient) AS Age
+         FROM Fait
+         LEFT JOIN Patient ON Fait.Id_patient = Patient.Id
+         LEFT JOIN Temps ON Fait.Id_temps = Temps.Id
+         WHERE Sexe_patient LIKE 'M') AS Tmp 
+   GROUP BY Sexe_patient, Age;
+
+# Hospitalisation et consultation par age pour les hommes sur les tables non partitionnées (pas de création de vue)
+
+DROP VIEW IF EXISTS ConsultationHospitalisationFemme;
+CREATE VIEW ConsultationHospitalisationPatient (Sum_consultation, Sum_hospitalisation, Sexe_patient, Age)
+AS SELECT SUM(Nombre_consultation) AS Sum_consultation, SUM(Nombre_hospitalisation) AS Sum_hospitalisation, Sexe_patient, Age
+   FROM (SELECT Nombre_consultation, Nombre_hospitalisation, Sexe_patient, 
+         IF(Mois_temps < Mois_naissance_patient AND Jour_temps < Jour_naissance_patient, 
+         Annee_temps - Annee_naissance_patient - 1, Annee_temps - Annee_naissance_patient) AS Age
+         FROM Fait
+         LEFT JOIN Patient_tmp ON Fait.Id_patient = Patient_tmp.Id
+         LEFT JOIN Temps_tmp ON Fait.Id_temps = Temps_tmp.Id
+         WHERE Sexe_patient LIKE 'M') AS Tmp 
+   GROUP BY Sexe_patient, Age;
+
+# Hospitalisation et consultation par age pour les femmes sur les tables partitionnées
+
+DROP VIEW IF EXISTS ConsultationHospitalisationFemme;
+CREATE VIEW ConsultationHospitalisationPatient (Sum_consultation, Sum_hospitalisation, Sexe_patient, Age)
+AS SELECT SUM(Nombre_consultation) AS Sum_consultation, SUM(Nombre_hospitalisation) AS Sum_hospitalisation, Sexe_patient, Age
+   FROM (SELECT Nombre_consultation, Nombre_hospitalisation, Sexe_patient, 
+         IF(Mois_temps < Mois_naissance_patient AND Jour_temps < Jour_naissance_patient, 
+         Annee_temps - Annee_naissance_patient - 1, Annee_temps - Annee_naissance_patient) AS Age
+         FROM Fait
+         LEFT JOIN Patient ON Fait.Id_patient = Patient.Id
+         LEFT JOIN Temps ON Fait.Id_temps = Temps.Id
+         WHERE Sexe_patient LIKE 'F') AS Tmp 
+   GROUP BY Sexe_patient, Age;
+
+# Hospitalisation et consultation par age pour les femmes sur les tables non partitionnées (pas de création de vue)
+
+DROP VIEW IF EXISTS ConsultationHospitalisationFemme;
+CREATE VIEW ConsultationHospitalisationPatient (Sum_consultation, Sum_hospitalisation, Sexe_patient, Age)
+AS SELECT SUM(Nombre_consultation) AS Sum_consultation, SUM(Nombre_hospitalisation) AS Sum_hospitalisation, Sexe_patient, Age
+   FROM (SELECT Nombre_consultation, Nombre_hospitalisation, Sexe_patient, 
+         IF(Mois_temps < Mois_naissance_patient AND Jour_temps < Jour_naissance_patient, 
+         Annee_temps - Annee_naissance_patient - 1, Annee_temps - Annee_naissance_patient) AS Age
+         FROM Fait
+         LEFT JOIN Patient_tmp ON Fait.Id_patient = Patient_tmp.Id
+         LEFT JOIN Temps_tmp ON Fait.Id_temps = Temps_tmp.Id
+         WHERE Sexe_patient LIKE 'F') AS Tmp 
+   GROUP BY Sexe_patient, Age;
+
+#__________________________SIX_______________________________
+# Taux de consultation par professionnel sur les table partitionnées
+
+DROP VIEW IF EXISTS TauxConsultationProfessionnelVue;
+CREATE VIEW TauxConsultationProfessionnelVue (Taux, Sum_consultation, Total_consultation, Nom_professionnel, Prenom_professionnel, Profession_professionnel, Specialite_professionnel, Annee_temps, Mois_temps, Jour_temps)
+AS SELECT Sum_consultation*100/Total_consultation AS Taux, Sum_consultation, Total_consultation, Nom_professionnel, Prenom_professionnel, Profession_professionnel, Specialite_professionnel, Annee_temps, Mois_temps, Jour_temps
+FROM (SELECT SUM(Nombre_consultation) as Sum_consultation, Id_professionnel, Id_temps 
+      FROM Fait 
+      WHERE Nombre_consultation != 0
+      GROUP BY Id_professionnel, Id_temps) AS Consultation_professionnel
+LEFT JOIN
+     (SELECT SUM(Nombre_consultation) AS Total_consultation, Id_temps
+      FROM Fait
+      WHERE Nombre_consultation != 0
+      GROUP BY Id_temps) AS Consultation_total
+ON Consultation_professionnel.Id_temps = Consultation_total.Id_temps
+LEFT JOIN Professionnel ON Consultation_professionnel.Id_professionnel = Professionnel.Id
+LEFT JOIN Temps ON Consultation_professionnel.Id_temps = Temps.Id;
+
+# Taux de consultation par professionnel sur les tables non partitionnées (pas de création de vue)
+
+
+SELECT Sum_consultation*100/Total_consultation AS Taux, Sum_consultation, Total_consultation, Nom_professionnel, Prenom_professionnel, Profession_professionnel, Specialite_professionnel, Annee_temps, Mois_temps, Jour_temps
+FROM (SELECT SUM(Nombre_consultation) as Sum_consultation, Id_professionnel, Id_temps 
+      FROM Fait 
+      WHERE Nombre_consultation != 0
+      GROUP BY Id_professionnel, Id_temps) AS Consultation_professionnel
+LEFT JOIN
+     (SELECT SUM(Nombre_consultation) AS Total_consultation, Id_temps
+      FROM Fait
+      WHERE Nombre_consultation != 0
+      GROUP BY Id_temps) AS Consultation_total
+ON Consultation_professionnel.Id_temps = Consultation_total.Id_temps
+LEFT JOIN Professionnel_tmp ON Consultation_professionnel.Id_professionnel = Professionnel_tmp.Id
+LEFT JOIN Temps_tmp ON Consultation_professionnel.Id_temps = Temps_tmp.Id;
+
+#_________________________________SEPT____________________________
+# Nombre de décès par région et par année sur les tables partitionnées
+
+DROP VIEW IF EXISTS NombreDecesLocalisation;
+CREATE VIEW NombreDecesLocalisation (Nombre_deces,  Code_region_localisation, Nom_region_localisation, Annee_temps)
+AS SELECT Nombre_deces, Code_region_localisation, Libelle_region_localisation, Annee_temps
+FROM Fait
+LEFT JOIN Temps ON Fait.Id_temps = Temps.Id
+LEFT JOIN Localisation ON Fait.Id_localisation = Localisation.Id
+GROUP BY Code_region_localisation, Libelle_region_localisation, Annee_temps, Nombre_deces;
+
+# Nombre de décès par région et par année sur les tables non partitionnées (pas de création de vue)
+
+SELECT Nombre_deces, Code_region_localisation, Libelle_region_localisation, Annee_temps
+FROM Fait
+LEFT JOIN Temps_tmp ON Fait.Id_temps = Temps_tmp.Id
+LEFT JOIN Localisation_tmp ON Fait.Id_localisation = Localisation_tmp.Id
+GROUP BY Code_region_localisation, Libelle_region_localisation, Annee_temps, Nombre_deces;
+
+#_______________________________________HUIT___________________________________
+# Total de satisfaction par region et année sur les tables partitionnées
+
+DROP VIEW IF EXISTS SatisfactionLocalisation;
+CREATE VIEW SatisfactionLocalisation (Total_satisfaction, Code_region_localisation, Libelle_region_localisation, Annee_temps)
+AS SELECT AVG(Total_satisfaction), Code_region_localisation, Libelle_region_localisation, Annee_temps 
+   FROM Fait
+   LEFT JOIN Localisation ON Fait.Id_localisation = Localisation.Id 
+   LEFT JOIN Temps ON Fait.Id_temps = Temps.Id
+   GROUP BY Code_region_localisation, Libelle_region_localisation, Annee_temps;
+
+# Total de satisfaction par region et année sur les tables non partitionnées (pas de création de vue)
+
+SELECT AVG(Total_satisfaction), Code_region_localisation, Libelle_region_localisation, Annee_temps 
+   FROM Fait
+   LEFT JOIN Localisation_tmp ON Fait.Id_localisation = Localisation_tmp.Id 
+   LEFT JOIN Temps_tmp ON Fait.Id_temps = Temps_tmp.Id
+   GROUP BY Code_region_localisation, Libelle_region_localisation, Annee_temps;
+
+#_________________________________________REQUETE ANALYSE DE TEMPS___________________________
+# Sur tables partitionnées
+
+SELECT * FROM Patient WHERE Sexe_patient = 'F' AND Tranche_age_patient == 2;
+
+# Sur tables non partitionnées
+
+SELECT * FROM Patient_tmp WHERE Sexe_patient = 'F' AND Tranche_age_patient == 2;

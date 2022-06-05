@@ -1,0 +1,178 @@
+# Fichier de création de l'ensemble des tables dans hive
+
+# Création des différents répertoires
+
+hdfs dfs -mkdir /user/hive/datawarehouse
+hdfs dfs -mkdir /user/hive/datawarehouse/patient
+hdfs dfs -mkdir /user/hive/datawarehouse/professionnel
+hdfs dfs -mkdir /user/hive/datawarehouse/diagnostic
+hdfs dfs -mkdir /user/hive/datawarehouse/localisation
+hdfs dfs -mkdir /user/hive/datawarehouse/temps
+hdfs dfs -mkdir /user/hive/datawarehouse/fait
+
+hdfs dfs -chmod 777 /user/hive/datawarehouse
+hdfs dfs -chmod 777 /user/hive/datawarehouse/patient
+hdfs dfs -chmod 777 /user/hive/datawarehouse/professionnel
+hdfs dfs -chmod 777 /user/hive/datawarehouse/diagnostic
+hdfs dfs -chmod 777 /user/hive/datawarehouse/localisation
+hdfs dfs -chmod 777 /user/hive/datawarehouse/temps
+hdfs dfs -chmod 777 /user/hive/datawarehouse/fait
+
+hive
+
+# Création de la BDD
+
+CREATE DATABASE IF NOT EXISTS CHU
+COMMENT 'BDD du projet CHU'
+LOCATION '/user/hive/datawarehouse';
+
+# Création et peuplement des tables en lien avec la dimension patient
+
+CREATE EXTERNAL TABLE IF NOT EXISTS Patient_tmp(
+Id int,
+Id_patient int,
+Sexe_patient char(1),
+Tranche_age_patient int,
+Jour_naissance_patient int,
+Mois_naissance_patient int,
+Annee_naissance_patient int)
+COMMENT 'Dimension patient non partitionne'
+ROW FORMAT DELIMITED FIELDS TERMINATED BY '\;'
+STORED AS TEXTFILE
+LOCATION '/user/hive/datawarehouse/patient';
+
+CREATE EXTERNAL TABLE IF NOT EXISTS Patient(
+Id int,
+Id_patient int,
+Jour_naissance_patient int,
+Mois_naissance_patient int,
+Annee_naissance_patient int)
+COMMENT 'Dimension patient'
+PARTITIONED BY (Sexe_patient char(1), Tranche_age_patient int)
+CLUSTERED BY (Id) into 10 BUCKETS
+ROW FORMAT DELIMITED FIELDS TERMINATED BY '\;'
+STORED AS TEXTFILE;
+
+INSERT OVERWRITE TABLE Patient PARTITION (Sexe_patient, Tranche_age_patient)
+SELECT Id, Id_patient, Jour_naissance_patient, Mois_naissance_patient, 
+Annee_naissance_patient, Sexe_patient, Tranche_age_patient FROM Patient_tmp;
+
+# Création et peuplement des tables en lien avec la dimension professionnel 
+
+CREATE EXTERNAL TABLE IF NOT EXISTS Professionnel_tmp(
+Id int,
+Identifiant_professionnel string,
+Nom_professionnel string,
+Prenom_professionnel string,
+Identifiant_etablissement_professionnel string,
+Libelle_etablissement_professionnel string,
+Code_departement_etablissement_professionnel string,
+Profession_professionnel string,
+Specialite_professionnel string,
+Mode_exercice_professionnel string)
+COMMENT 'Dimension professionnel non partionne'
+ROW FORMAT DELIMITED FIELDS TERMINATED BY '\;'
+STORED AS TEXTFILE
+LOCATION '/user/hive/datawarehouse/professionnel';
+
+CREATE EXTERNAL TABLE IF NOT EXISTS Professionnel(
+Id int,
+Identifiant_professionnel string,
+Nom_professionnel string,
+Prenom_professionnel string,
+Identifiant_etablissement_professionnel string,
+Libelle_etablissement_professionnel string,
+Code_departement_etablissement_professionnel string,
+Specialite_professionnel string,
+Mode_exercice_professionnel string)
+COMMENT 'Dimension professionnel'
+PARTITIONED BY (Profession_professionnel string)
+CLUSTERED BY (Id) into 100 BUCKETS
+ROW FORMAT DELIMITED FIELDS TERMINATED BY '\;'
+STORED AS TEXTFILE;
+
+INSERT OVERWRITE TABLE Professionnel PARTITION (Profession_professionnel)
+SELECT Id, Identifiant_professionnel, Nom_professionnel, Prenom_professionnel, Identifiant_etablissement_professionnel, 
+Libelle_etablissement_professionnel, Code_departement_etablissement_professionnel, Specialite_professionnel, Mode_exercice_professionnel, 
+Profession_professionnel FROM Professionnel_tmp;
+
+# Création et peuplement de la table en lien avec la dimension diagnostic
+
+CREATE EXTERNAL TABLE IF NOT EXISTS Diagnostic(
+Id int,
+Code_diagnostic string,
+Libelle_diagnostic string)
+COMMENT 'Dimension diagnostic'
+ROW FORMAT DELIMITED FIELDS TERMINATED BY '\;'
+STORED AS TEXTFILE
+LOCATION '/user/hive/datawarehouse/diagnostic';
+
+# Création et peuplement des tables en lien avec la dimension localisation
+
+CREATE EXTERNAL TABLE IF NOT EXISTS Localisation_tmp(
+Id int,
+Code_departement_localisation string,
+Libelle_departement_localisation string,
+Code_region_localisation string,
+Libelle_region_localisation string)
+COMMENT 'Dimension localisation non partitionne'
+ROW FORMAT DELIMITED FIELDS TERMINATED BY '\;'
+STORED AS TEXTFILE
+LOCATION '/user/hive/datawarehouse/localisation';
+
+CREATE EXTERNAL TABLE IF NOT EXISTS Localisation(
+Id int,
+Code_departement_localisation string,
+Libelle_departement_localisation string,
+Libelle_region_localisation string)
+COMMENT 'Dimension diagnostic'
+PARTITIONED BY (Code_region_localisation string)
+CLUSTERED BY (Id) into 2 BUCKETS
+ROW FORMAT DELIMITED FIELDS TERMINATED BY '\;'
+STORED AS TEXTFILE;
+
+INSERT OVERWRITE TABLE Localisation PARTITION (Code_region_localisation)
+SELECT Id, Code_departement_localisation, Libelle_departement_localisation, Libelle_region_localisation, Code_region_localisation FROM Localisation_tmp;
+
+# Création et peuplement des tables en lien avec la dimension temps
+
+CREATE EXTERNAL TABLE IF NOT EXISTS Temps_tmp(
+Id int,
+Jour_temps int,
+Mois_temps int,
+Annee_temps int)
+COMMENT 'Dimension temps non partitionne'
+ROW FORMAT DELIMITED FIELDS TERMINATED BY '\;'
+STORED AS TEXTFILE
+LOCATION '/user/hive/datawarehouse/temps';
+
+CREATE EXTERNAL TABLE IF NOT EXISTS Temps(
+Id int,
+Jour_temps int,
+Mois_temps int)
+COMMENT 'Dimension temps'
+PARTITIONED BY (Annee_temps int)
+CLUSTERED BY (Id) into 5 BUCKETS
+ROW FORMAT DELIMITED FIELDS TERMINATED BY '\;'
+STORED AS TEXTFILE;
+
+INSERT OVERWRITE TABLE Temps PARTITION (Annee_temps)
+SELECT Id, Jour_temps, Mois_temps, Annee_temps FROM Temps_tmp;
+
+# Création et peuplement de la table de fait
+
+CREATE EXTERNAL TABLE IF NOT EXISTS Fait(
+Id_patient int,
+Id_professionnel int,
+Id_diagnostic int,
+Id_localisation int,
+Id_temps int,
+Nombre_admission int,
+Nombre_hospitalisation int,
+Nombre_consultation int,
+Nombre_deces int,
+Total_satisfaction float)
+COMMENT 'Table de faits'
+ROW FORMAT DELIMITED FIELDS TERMINATED BY '\;'
+STORED AS TEXTFILE
+LOCATION '/user/hive/datawarehouse/fait';
